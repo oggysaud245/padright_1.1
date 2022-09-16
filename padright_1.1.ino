@@ -327,15 +327,22 @@ void menuManagement()
           {
             if (mfrc522.PICC_ReadCardSerial())
             {
+              // writeByte[0] = 107;
               writeByte[15] = padAmount;
               if (writeCard(writeByte))
               {
+                lcd.setCursor(0, 1);
+                lcd.print("Done");
                 success(500);
               }
             }
+            lcd.clear();
+            lcd.setCursor(0, 0);
+            lcd.print("Scan Card!");
+            halt();
           }
         }
-        halt();
+        // halt();
         while (!digitalRead(okButton))
           ;
         /////   batch code
