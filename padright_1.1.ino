@@ -19,6 +19,10 @@ byte writeByte[16];
 int authAddr = 3;
 byte byteSize = sizeof(readByte);
 
+//-------------- batch Write -----------------
+// Variable  for pad amount
+byte padAmount = 1;
+
 // --------- eeprom address for menu variables ---------
 static byte rack1Address = 1;
 static byte rack2Address = 2;
@@ -48,15 +52,14 @@ int state = 0;
 bool makeChange = false;
 char status = 'n';
 byte arrow[8] = {
-  0b00000,
-  0b11100,
-  0b10010,
-  0b01001,
-  0b01001,
-  0b10010,
-  0b11100,
-  0b00000
-};
+    0b00000,
+    0b11100,
+    0b10010,
+    0b01001,
+    0b01001,
+    0b10010,
+    0b11100,
+    0b00000};
 
 void setup()
 {
@@ -128,7 +131,7 @@ void manageRFID()
         if (readByte[15] != 0 && readByte[0] == 107) // verify the card and available quantity on card
         {
           dumpToWriteVar(readByte, 16);
-          if (!writeCard())
+          if (!writeCard(writeByte))
           {
             lcd.clear();
             lcd.setCursor(0, 0);
@@ -141,37 +144,37 @@ void manageRFID()
           {
             byte lastData = readByte[15];
             readCard();
-            if (getStock() != 0 ) // check the stock before proceeding
+            if (getStock() != 0) // check the stock before proceeding
             {
-             if ( lastData != readByte[15]) // check the stock before proceeding
-            {
-              delay(500);
-              lcd.clear();
-              lcd.setCursor(0, 0);
-              lcd.print("Left for Card:");
-              lcd.setCursor(0, 1);
-              lcd.print(writeByte[15]);
-              delay(3000);
-              lcd.clear();
-              lcd.setCursor(0, 0);
-              lcd.print("Receive Pad");
-              lcd.setCursor(0, 1);
-              lcd.print("Thank you!");
-              success(800);
-              delay(1000);
-              runMotor();
+              if (lastData != readByte[15]) // check the stock before proceeding
+              {
+                delay(500);
+                lcd.clear();
+                lcd.setCursor(0, 0);
+                lcd.print("Left for Card:");
+                lcd.setCursor(0, 1);
+                lcd.print(writeByte[15]);
+                delay(3000);
+                lcd.clear();
+                lcd.setCursor(0, 0);
+                lcd.print("Receive Pad");
+                lcd.setCursor(0, 1);
+                lcd.print("Thank you!");
+                success(800);
+                delay(1000);
+                runMotor();
+              }
+              else // print if card scan time is fast
+              {
+                lcd.clear();
+                lcd.setCursor(0, 0);
+                lcd.print("Sorry");
+                lcd.setCursor(0, 1);
+                lcd.print("Hold card for 1Sec");
+                warning();
+              }
             }
-             else // print if card scan time is fast
-            {
-              lcd.clear();
-              lcd.setCursor(0, 0);
-              lcd.print("Sorry");
-              lcd.setCursor(0, 1);
-              lcd.print("Hold card for 1Sec");
-              warning();
-            }
-            }
-            
+
             else // print if no stock remaining
             {
               lcd.clear();
@@ -225,7 +228,7 @@ void menuManagement()
     {
       delay(300);
       topMenuPosition++;
-      if (topMenuPosition == 3)
+      if (topMenuPosition == 4)
         topMenuPosition = 0;
       makeChange = true;
       changeDone = true;
@@ -239,68 +242,104 @@ void menuManagement()
         status = 'f';
       else if (state == 1 && topMenuPosition == 2)
         status = 'm';
+      else if (state == 1 && topMenuPosition == 3)
+        status = 'b';
       // Serial.println(status);
       switch (status)
       {
-        case 'f':
-          fillMenu();
-          while (digitalRead(okButton))
+      case 'f':
+        fillMenu();
+        while (digitalRead(okButton))
+        {
+          // delay(300);
+          if (!digitalRead(selectButton))
           {
-            // delay(300);
-            if (!digitalRead(selectButton))
-            {
-              delay(300);
-              maxRackCapacity = maxRackCapacity + 1;
-              if (maxRackCapacity > 60)
-                maxRackCapacity = 1;
-              fillMenu();
-            }
-
+            delay(300);
+            maxRackCapacity = maxRackCapacity + 1;
+            if (maxRackCapacity > 60)
+              maxRackCapacity = 1;
+            fillMenu();
           }
-          fillAll(maxRackCapacity);
-          break;
-        case 'm':
-          motorTime();
-          while (digitalRead(okButton))
+        }
+        fillAll(maxRackCapacity);
+        break;
+      case 'm':
+        motorTime();
+        while (digitalRead(okButton))
+        {
+          // delay(300);
+          if (!digitalRead(selectButton))
           {
-            // delay(300);
-            if (!digitalRead(selectButton))
-            {
-              delay(300);
-              motorTimeVariable = motorTimeVariable + 100;
-              if (motorTimeVariable > 5000)
-                motorTimeVariable = 100;
-              motorTime();
-            }
+            delay(300);
+            motorTimeVariable = motorTimeVariable + 100;
+            if (motorTimeVariable > 5000)
+              motorTimeVariable = 100;
+            motorTime();
           }
-          break;
-        case 'r':
-          manageRack1();
-          while (digitalRead(okButton))
+        }
+        break;
+      case 'r':
+        manageRack1();
+        while (digitalRead(okButton))
+        {
+          // delay(300);
+          if (!digitalRead(selectButton))
           {
-            // delay(300);
-            if (!digitalRead(selectButton))
-            {
-              delay(300);
-              rack1.incQuantity();
-              manageRack1();
-            }
+            delay(300);
+            rack1.incQuantity();
+            manageRack1();
           }
-          while (!digitalRead(okButton))
-            ;
-          manageRack2();
-          while (digitalRead(okButton))
+        }
+        while (!digitalRead(okButton))
+          ;
+        manageRack2();
+        while (digitalRead(okButton))
+        {
+          if (!digitalRead(selectButton))
           {
-            if (!digitalRead(selectButton))
+            delay(300);
+            rack2.incQuantity();
+            manageRack2();
+          }
+        }
+        while (!digitalRead(okButton))
+          ;
+        break;
+      case 'b':
+        batchWrite();
+        while (digitalRead(okButton))
+        {
+          if (!digitalRead(selectButton))
+          {
+            delay(300);
+            padAmountInc();
+            batchWrite();
+          }
+        }
+        while (!digitalRead(okButton))
+          ;
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Scan Card!");
+        while (digitalRead(okButton))
+        {
+          if (mfrc522.PICC_IsNewCardPresent())
+          {
+            if (mfrc522.PICC_ReadCardSerial())
             {
-              delay(300);
-              rack2.incQuantity();
-              manageRack2();
+              writeByte[15] = padAmount;
+              if (writeCard(writeByte))
+              {
+                success(500);
+              }
             }
           }
-          while (!digitalRead(okButton))
-            ;          
-          break;
+        }
+        halt();
+        while (!digitalRead(okButton))
+          ;
+        /////   batch code
+        break;
       }
       writeToEPPROM(status);
       success(800);
@@ -313,45 +352,6 @@ void menuManagement()
   makeChange = false;
 }
 
-// void homePage()
-// {
-//     if (!isUpdate)
-//     {
-//         isUpdate = true;
-//         if (!change)
-//         {
-//             lcd.clear();
-//             lcd.setCursor(6, 0);
-//             lcd.print("Scan");
-//             lcd.setCursor(4, 1);
-//             lcd.print("Card Here");
-//         }
-//         else
-//         {
-//             lcd.clear();
-//             lcd.setCursor(0, 0);
-//             lcd.print("R 1  2  3  4  5");
-//             lcd.setCursor(0, 1);
-//             lcd.print("Q");
-//             lcd.setCursor(2, 1);
-//             lcd.print(rack1.getQuantity());
-//             lcd.setCursor(5, 1);
-//             lcd.print(rack2.getQuantity());
-//             lcd.setCursor(8, 1);
-//             lcd.print(rack3.getQuantity());
-//             lcd.setCursor(11, 1);
-//             lcd.print(rack4.getQuantity());
-//             lcd.setCursor(14, 1);
-//             lcd.print(rack5.getQuantity());
-//         }
-//     }
-//     if (millis() - previousTime >= 5000)
-//     {
-//         change = !change;
-//         previousTime = millis();
-//         isUpdate = false;
-//     }
-// }
 void homePage2()
 {
   if (changeDone == true)
@@ -369,50 +369,68 @@ void topMenu()
 {
   switch (topMenuPosition)
   {
-    case 0:
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.write((byte)0);
-      lcd.setCursor(3, 0);
-      lcd.print("Rack Quantity");
-      lcd.setCursor(3, 1);
-      lcd.print("Fill All Rack");
-      break;
-    case 1:
-      lcd.clear();
-      lcd.setCursor(3, 0);
-      lcd.print("Rack Quantity");
-      lcd.setCursor(0, 1);
-      lcd.write((byte)0);
-      lcd.setCursor(3, 1);
-      lcd.print("Fill All Rack");
-      break;
-    case 2:
-      lcd.clear();
-      lcd.setCursor(3, 0);
-      lcd.print("Fill All Rack");
-      lcd.setCursor(0, 1);
-      lcd.write((byte)0);
-      lcd.setCursor(3, 1);
-      lcd.print("Motor Time");
-      break;
+  case 0:
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.write((byte)0);
+    lcd.setCursor(3, 0);
+    lcd.print("Rack Quantity");
+    lcd.setCursor(3, 1);
+    lcd.print("Fill All Rack");
+    break;
+  case 1:
+    lcd.clear();
+    lcd.setCursor(3, 0);
+    lcd.print("Rack Quantity");
+    lcd.setCursor(0, 1);
+    lcd.write((byte)0);
+    lcd.setCursor(3, 1);
+    lcd.print("Fill All Rack");
+    break;
+  case 2:
+    lcd.clear();
+    lcd.setCursor(3, 0);
+    lcd.print("Fill All Rack");
+    lcd.setCursor(0, 1);
+    lcd.write((byte)0);
+    lcd.setCursor(3, 1);
+    lcd.print("Motor Time");
+    break;
+  case 3:
+    lcd.clear();
+    lcd.setCursor(3, 0);
+    lcd.print("Motor Time");
+    lcd.setCursor(0, 1);
+    lcd.write((byte)0);
+    lcd.setCursor(3, 1);
+    lcd.print("Batch Write");
+    break;
   }
 }
 void menu()
 {
   switch (state)
   {
-    case 0:
-      homePage2();
-      topMenuPosition = 0;
-      status = 'a';
-      break;
-    case 1:
-      if (makeChange)
-        topMenu();
-      isUpdate = false;
-      break;
+  case 0:
+    homePage2();
+    topMenuPosition = 0;
+    status = 'a';
+    break;
+  case 1:
+    if (makeChange)
+      topMenu();
+    isUpdate = false;
+    break;
   }
+}
+void batchWrite()
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Pad Amount");
+  lcd.setCursor(0, 1);
+  // enter number
+  lcd.print(padAmount);
 }
 void manageRack1()
 {
@@ -472,7 +490,6 @@ void readFromEEPROM()
     motorTimeVariable = 0;
   rack1.setQuantity(EEPROM.read(rack1Address));
   rack2.setQuantity(EEPROM.read(rack2Address));
-
 }
 
 void writeIntIntoEEPROM(int address, int number)
@@ -498,7 +515,7 @@ bool readCard()
   }
   return true;
 }
-bool writeCard()
+bool writeCard(byte writeByte[])
 {
   if (auth_B())
   {
@@ -567,12 +584,13 @@ void runMotor()
     writeToEPPROM('r');
   }
 }
-void fillAll(int num) {
+void fillAll(int num)
+{
   rack1.setQuantity(num);
   rack2.setQuantity(num);
-
 }
-void fillMenu() {
+void fillMenu()
+{
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Enter capacity");
@@ -603,4 +621,12 @@ void warning()
   digitalWrite(buzzer, HIGH);
   delay(400);
   digitalWrite(buzzer, LOW);
+}
+void padAmountInc()
+{
+  padAmount++;
+  if (padAmount > 20)
+  {
+    padAmount = 1;
+  }
 }
